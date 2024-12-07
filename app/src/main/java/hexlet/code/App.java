@@ -41,9 +41,7 @@ public class App {
     }
 
     public static void main(String[] args) throws IOException, SQLException {
-        var hikariConfig = getHikariConfig();
-        var dataSource = new HikariDataSource(hikariConfig);
-        var app = getApp(dataSource);
+        var app = getApp();
 
         app.start(getPort());
     }
@@ -102,6 +100,12 @@ public class App {
             }
             statement.execute(schemaSql);
         }
+    }
+
+    public static Javalin getApp() throws IOException, SQLException {
+        var hikariConfig = getHikariConfig();
+        var dataSource = new HikariDataSource(hikariConfig);
+        return getApp(dataSource);
     }
 
 
