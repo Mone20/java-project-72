@@ -33,13 +33,15 @@ import uk.org.webcompere.systemstubs.jupiter.SystemStubsExtension;
 class AppTest {
 
     private static Javalin app;
+    private static DataSource dataSource;
     private static MockWebServer mockServer;
     private static UrlRepository urlRepository;
     private static UrlCheckRepository urlCheckRepository;
+    private static final String JDBC_URL = "jdbc:h2:mem:project";
 
     private static DataSource getDataSource() {
         var hikariConfig = new HikariConfig();
-        hikariConfig.setJdbcUrl("jdbc:h2:mem:project");
+        hikariConfig.setJdbcUrl(JDBC_URL);
         return new HikariDataSource(hikariConfig);
     }
 
@@ -56,13 +58,13 @@ class AppTest {
     @BeforeAll
     public static void beforeAll(EnvironmentVariables env) throws IOException {
         env.set("IS_DROP_DB_ENABLED", "true");
-
+        env.set("JDBC_DATABASE_URL", JDBC_URL);
         mockServer = new MockWebServer();
         MockResponse mockedResponse = new MockResponse()
                 .setBody(readFixture("index.html"));
         mockServer.enqueue(mockedResponse);
         mockServer.start();
-        DataSource dataSource = getDataSource();
+        dataSource = getDataSource();
         urlRepository = new UrlRepository(dataSource);
         urlCheckRepository = new UrlCheckRepository(dataSource);
     }
@@ -74,7 +76,7 @@ class AppTest {
 
     @BeforeEach
     void setUp() throws SQLException, IOException {
-        app = App.getApp();
+        app = App.getApp(dataSource);
     }
 
 

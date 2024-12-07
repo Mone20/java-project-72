@@ -41,13 +41,15 @@ public class App {
     }
 
     public static void main(String[] args) throws IOException, SQLException {
-        var app = getApp();
+        var hikariConfig = getHikariConfig();
+        var dataSource = new HikariDataSource(hikariConfig);
+        var app = getApp(dataSource);
 
         app.start(getPort());
     }
 
     private static String getDatabaseUrl() {
-        return System.getenv().getOrDefault("JDBC_DATABASE_URL", "jdbc:h2:mem:project");
+        return System.getenv().getOrDefault("JDBC_DATABASE_URL", "jdbc:postgresql://localhost:5432/urlchecker");
     }
 
     private static String getDriverName() {
@@ -103,11 +105,9 @@ public class App {
     }
 
 
-    public static Javalin getApp() throws IOException, SQLException {
+    public static Javalin getApp(DataSource dataSource) throws IOException, SQLException {
 
-        var hikariConfig = getHikariConfig();
 
-        var dataSource = new HikariDataSource(hikariConfig);
         executeSchemaScript(dataSource);
 
         var app = Javalin.create(config -> config.fileRenderer(new JavalinJte(createTemplateEngine())));
