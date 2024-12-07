@@ -16,10 +16,13 @@ import io.javalin.Javalin;
 import io.javalin.rendering.template.JavalinJte;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.sql.DataSource;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.sql.Driver;
+import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.stream.Collectors;
 
@@ -47,18 +50,46 @@ public class App {
         return System.getenv().getOrDefault("JDBC_DATABASE_URL", "jdbc:h2:mem:project");
     }
 
+    private static String getDriverName() {
+        Driver driver;
+        try {
+            driver = DriverManager.getDriver(getDatabaseUrl());
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+        return driver.getClass().getName();
+    }
+
     private static boolean isDropDbEnabled() {
         return Boolean.parseBoolean(System.getenv().getOrDefault("IS_DROP_DB_ENABLED", "false"));
     }
 
-
-    public static Javalin getApp() throws IOException, SQLException {
-
+    private static HikariConfig getHikariConfig() {
         var hikariConfig = new HikariConfig();
         hikariConfig.setJdbcUrl(getDatabaseUrl());
+        String driverClassName = getDriverName();
+        switch (driverClassName) {
+            case "org.postgresql.Driver":
+                hikariConfig.setUsername(System.getenv().getOrDefault("DB_USER", "admin"));
+                hikariConfig.setPassword(System.getenv().getOrDefault("DB_PASSWORD", "admin"));
+                hikariConfig.setDriverClassName(driverClassName);
+                break;
+            default:
+                hikariConfig.setDriverClassName(driverClassName);
+        }
+        return hikariConfig;
+    }
 
-        var dataSource = new HikariDataSource(hikariConfig);
-        String schemaSql = readResourceFile("schema.sql");
+    private static void executeSchemaScript(DataSource dataSource) throws IOException, SQLException {
+        String schemaSql;
+        switch (getDriverName()) {
+            case "org.postgresql.Driver":
+                schemaSql = readResourceFile("postgresql/schema.sql");
+                break;
+            default:
+                schemaSql = readResourceFile("h2/schema.sql");
+                break;
+        }
 
         log.info(schemaSql);
         try (var connection = dataSource.getConnection();
@@ -69,7 +100,15 @@ public class App {
             }
             statement.execute(schemaSql);
         }
+    }
 
+
+    public static Javalin getApp() throws IOException, SQLException {
+
+        var hikariConfig = getHikariConfig();
+
+        var dataSource = new HikariDataSource(hikariConfig);
+        executeSchemaScript(dataSource);
 
         var app = Javalin.create(config -> config.fileRenderer(new JavalinJte(createTemplateEngine())));
 
